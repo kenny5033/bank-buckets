@@ -1,7 +1,16 @@
-module Bucket (Bucket) where
+module BankBuckets.Domain.Bucket (Bucket (..), displayBucket) where
+
+import BankBuckets.Common (DomainObject (..))
 
 data Bucket = Bucket
-  { name :: String,
-    amount :: Float
+  { bucketId :: Int,
+    bucketName :: String,
+    bucketAmount :: Float
   }
   deriving (Show)
+
+displayBucket :: Bucket -> String
+displayBucket (Bucket _ name amount) = name ++ " - " ++ show amount
+
+instance DomainObject Bucket where
+  idOf b = bucketId b
