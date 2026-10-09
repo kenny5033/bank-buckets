@@ -1,0 +1,41 @@
+# Cabal build and distribution artifacts
+dist/
+dist-*
+dist-newstyle/
+cabal-dev/
+
+# Local configuration and environment files
+cabal.project.local
+cabal.project.local~
+cabal.sandbox.config
+.cabal-sandbox/
+.ghc.environment.*
+
+# Compiled Haskell artifacts
+*.o
+*.hi
+*.hie
+*.chi
+*.chs.h
+*.dyn_o
+*.dyn_hi
+*.prof
+*.aux
+*.hp
+*.eventlog
+*.tix
+.hpc/
+
+# Stack artifacts (if using Stack alongside Cabal)
+.stack-work/
+stack.yaml.lock
+
+# IDE and editor files
+.vscode/
+.idea/
+*~
+.#*
+*.swp
+*.swo
+TAGS
+tags
