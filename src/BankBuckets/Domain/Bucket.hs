@@ -1,16 +1,24 @@
-module BankBuckets.Domain.Bucket (Bucket (..), displayBucket) where
+{-# LANGUAGE TemplateHaskell #-}
+
+module BankBuckets.Domain.Bucket (Bucket (..), displayBucket, changeBucketAmount) where
 
 import BankBuckets.Common (DomainObject (..))
+import Control.Lens
 
 data Bucket = Bucket
-  { bucketId :: Int,
-    bucketName :: String,
-    bucketAmount :: Float
+  { _bucketId :: Int,
+    _bucketName :: String,
+    _bucketAmount :: Float
   }
   deriving (Show)
+
+$(makeLenses ''Bucket)
+
+instance DomainObject Bucket where
+  idOf b = b ^. bucketId
 
 displayBucket :: Bucket -> String
 displayBucket (Bucket _ name amount) = name ++ " - " ++ show amount
 
-instance DomainObject Bucket where
-  idOf b = bucketId b
+changeBucketAmount :: Bucket -> Float -> Bucket
+changeBucketAmount b x = b & bucketAmount %~ (+ x)
