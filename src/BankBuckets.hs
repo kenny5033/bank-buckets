@@ -4,6 +4,7 @@ module BankBuckets (run) where
 
 import BankBuckets.Domain.Bucket
 import BankBuckets.Storage.SQLite (newBucketRepo)
+import Control.Lens
 import Data.Maybe
 import Database.SQLite.Simple (open)
 import Text.Read (readMaybe)
@@ -33,10 +34,10 @@ run = do
       _newName <- getLine
       let b = newBucket _newName
 
-      putStrLn "How much is in the bucket?"
-      _newAmount <- getLine
-      let maybeNewAmount = readMaybe _newAmount :: Maybe Float
-      let b' = changeBucketAmount b $ fromMaybe 0 maybeNewAmount
+      putStrLn "How much should go in the bucket every period?"
+      _newPortion <- getLine
+      let maybeNewAmount = readMaybe _newPortion :: Maybe Float
+      let b' = b & bucketPortion .~ fromMaybe 0 maybeNewAmount
 
       _ <- createBucket bucketRepo b'
       pure ()

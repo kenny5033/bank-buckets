@@ -4,6 +4,8 @@ module BankBuckets.Domain.Bucket
   ( bucketId,
     bucketName,
     bucketAmount,
+    bucketPortion,
+    bucketPeriod,
     BucketRepo (..),
     displayBucket,
     changeBucketAmount,
@@ -13,22 +15,25 @@ module BankBuckets.Domain.Bucket
 where
 
 import Control.Lens
+import Data.Time
 import Text.Printf (printf)
 
 data Bucket = Bucket
   { _bucketId :: Int,
     _bucketName :: String,
-    _bucketAmount :: Float
+    _bucketAmount :: Float,
+    _bucketPortion :: Float,
+    _bucketPeriod :: NominalDiffTime
   }
   deriving (Show)
 
 $(makeLenses ''Bucket)
 
 newBucket :: String -> Bucket
-newBucket name = Bucket {_bucketId = 0, _bucketName = name, _bucketAmount = 0}
+newBucket name = Bucket {_bucketId = 0, _bucketName = name, _bucketAmount = 0, _bucketPortion = 0, _bucketPeriod = secondsToNominalDiffTime 0}
 
 displayBucket :: Bucket -> String
-displayBucket (Bucket id' name amount) = printf "(%d) %s - %f" id' name amount
+displayBucket (Bucket id' name amount portion period) = printf "(%d) %s | %f <- %f / %s" id' name amount portion (show period)
 
 changeBucketAmount :: Bucket -> Float -> Bucket
 changeBucketAmount b x = b & bucketAmount %~ (+ x)

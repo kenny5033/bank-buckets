@@ -68,7 +68,7 @@ executable bank-buckets
     -- other-extensions:
 
     -- Other library packages from which modules are imported.
-    build-depends:    base^>=4.21.2.0, containers, lens, sqlite-simple, text
+    build-depends:    base^>=4.21.2.0, containers, lens, sqlite-simple, text, time
 
     -- Directories containing source files.
     hs-source-dirs:   app, src
