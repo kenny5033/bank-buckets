@@ -42,3 +42,5 @@ class BucketRepo repo where
   readBucket :: repo -> Int -> IO Bucket
   updateBucket :: repo -> Bucket -> IO ()
   deleteBucket :: repo -> Int -> IO ()
+
+  collectAllBuckets :: repo -> IO [Bucket]

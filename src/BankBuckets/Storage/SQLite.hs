@@ -51,3 +51,15 @@ instance BucketRepo SQLiteRepo where
       conn
       "DELETE FROM buckets WHERE id = ?"
       (Only dbId)
+
+  collectAllBuckets (SQLiteRepo conn) = do
+    res <-
+      query
+        conn
+        "SELECT id, name, amount FROM buckets"
+        () ::
+        IO [(Int, String, Float)]
+    pure $ map recordToBucket res
+    where
+      recordToBucket (resId, resName, resAmount) =
+        Bucket {_bucketId = resId, _bucketName = resName, _bucketAmount = resAmount}
