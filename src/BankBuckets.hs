@@ -1,22 +1,21 @@
 module BankBuckets (run) where
 
-import BankBuckets.Common (DomainObject (idOf), DomainRepo (add, load, update), InMemoryRepo (InMemoryRepo))
-import BankBuckets.Domain.Bucket
-import Data.IORef (newIORef)
-import Data.Map qualified as Map
+import BankBuckets.Domain.Bucket (BucketRepo (createBucket), displayBucket, newBucket)
+import BankBuckets.Storage.SQLite (newBucketRepo)
+import Database.SQLite.Simple (open)
+
+version :: String
+version = "0.1"
 
 run :: IO ()
 run = do
-  putStrLn "Hello, BankBuckets!"
+  putStrLn $ "BankBuckets v" ++ version
 
-  let b = Bucket {_bucketId = 1, _bucketAmount = 0, _bucketName = "General Savings"}
-  r <- InMemoryRepo <$> newIORef Map.empty
-  add r b
-  update r $ changeBucketAmount b 3.0
-  loadedB <- load r $ idOf b
+  conn <- open ":memory:"
+  bucketRepo <- newBucketRepo conn
+  b <- createBucket bucketRepo $ newBucket "General Savings"
+  b2 <- createBucket bucketRepo $ newBucket "Fun Money"
+  putStrLn $ displayBucket b
+  putStrLn $ displayBucket b2
 
-  let msg = case loadedB of
-        Just b' -> displayBucket b'
-        Nothing -> "Couldn't load for ID " ++ (show $ idOf b)
-
-  putStrLn msg
+  putStrLn "Bye"
