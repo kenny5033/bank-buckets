@@ -12,7 +12,6 @@ module BankBuckets.Domain.Bucket
   )
 where
 
-import BankBuckets.Domain.Common (DomainObject (..))
 import Control.Lens
 import Text.Printf (printf)
 
@@ -33,9 +32,6 @@ displayBucket (Bucket id' name amount) = printf "(%d) %s - %f" id' name amount
 
 changeBucketAmount :: Bucket -> Float -> Bucket
 changeBucketAmount b x = b & bucketAmount %~ (+ x)
-
-instance DomainObject Bucket where
-  idOf b = b ^. bucketId
 
 class BucketRepo repo where
   createBucket :: repo -> Bucket -> IO Bucket
