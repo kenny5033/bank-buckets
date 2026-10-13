@@ -8,6 +8,7 @@ module BankBuckets.Domain.Bucket
     displayBucket,
     changeBucketAmount,
     newBucket,
+    Bucket (..),
   )
 where
 

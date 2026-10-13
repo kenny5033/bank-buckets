@@ -3,10 +3,10 @@
 
 module BankBuckets.Storage.SQLite (newBucketRepo) where
 
-import BankBuckets.Domain.Bucket (BucketRepo (..), bucketAmount, bucketId, bucketName)
+import BankBuckets.Domain.Bucket (Bucket (..), BucketRepo (..), bucketAmount, bucketId, bucketName)
 import Control.Lens ((.~), (^.))
 import Data.Function ((&))
-import Database.SQLite.Simple (Connection, Only (fromOnly), execute_, query)
+import Database.SQLite.Simple (Connection, Only (Only, fromOnly), execute, execute_, query)
 
 newtype SQLiteRepo = SQLiteRepo Connection
 
@@ -30,5 +30,24 @@ instance BucketRepo SQLiteRepo where
         IO [Only Int]
     pure $ bucket & bucketId .~ fromOnly (head res)
 
-  updateBucket (SQLiteRepo conn) bucket = putStrLn $ "Updating bucket " ++ show bucket
-  deleteBucket (SQLiteRepo conn) dbID = putStrLn $ "Deleting bucket " ++ show dbID
+  readBucket (SQLiteRepo conn) dbId = do
+    res <-
+      query
+        conn
+        "SELECT id, name, amount FROM buckets WHERE id = ?"
+        (Only dbId) ::
+        IO [(Int, String, Float)]
+    let (resId, resName, resAmount) = head res
+    pure $ Bucket {_bucketId = resId, _bucketName = resName, _bucketAmount = resAmount}
+
+  updateBucket (SQLiteRepo conn) bucket = do
+    execute
+      conn
+      "UPDATE buckets SET name = ?, amount = ? WHERE id = ?"
+      (bucket ^. bucketName, bucket ^. bucketAmount, bucket ^. bucketId)
+
+  deleteBucket (SQLiteRepo conn) dbId = do
+    execute
+      conn
+      "DELETE FROM buckets WHERE id = ?"
+      (Only dbId)
