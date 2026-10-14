@@ -8,7 +8,6 @@ module BankBuckets.Domain.Bucket
     bucketPeriod,
     BucketRepo (..),
     displayBucket,
-    changeBucketAmount,
     newBucket,
     Bucket (..),
   )
@@ -34,9 +33,6 @@ newBucket name = Bucket {_bucketId = 0, _bucketName = name, _bucketAmount = 0, _
 
 displayBucket :: Bucket -> String
 displayBucket (Bucket id' name amount portion period) = printf "(%d) %s | %f <- %f / %s" id' name amount portion (show period)
-
-changeBucketAmount :: Bucket -> Float -> Bucket
-changeBucketAmount b x = b & bucketAmount %~ (+ x)
 
 class BucketRepo repo where
   createBucket :: repo -> Bucket -> IO Bucket
