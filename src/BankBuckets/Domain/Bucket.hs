@@ -6,6 +6,7 @@ module BankBuckets.Domain.Bucket
     bucketAmount,
     bucketPortion,
     bucketPeriod,
+    bucketLastResolvedDateTime,
     BucketRepo (..),
     Bucket (..),
   )
@@ -19,7 +20,8 @@ data Bucket = Bucket
     _bucketName :: String,
     _bucketAmount :: Float,
     _bucketPortion :: Float,
-    _bucketPeriod :: NominalDiffTime
+    _bucketPeriod :: NominalDiffTime,
+    _bucketLastResolvedDateTime :: UTCTime
   }
   deriving (Show)
 
