@@ -15,7 +15,7 @@ startBucket name portion periodDays startedAt =
       _bucketName = name,
       _bucketAmount = 0,
       _bucketPortion = portion,
-      _bucketPeriod = secondsToNominalDiffTime $ fromIntegral periodDays,
+      _bucketPeriod = secondsToNominalDiffTime $ fromIntegral (periodDays * 86400),
       _bucketLastResolvedDateTime = startedAt
     }
 
