@@ -39,3 +39,5 @@ stack.yaml.lock
 *.swo
 TAGS
 tags
+
+*.db

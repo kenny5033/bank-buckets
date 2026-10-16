@@ -9,15 +9,19 @@ import Control.Monad
 import Data.Maybe
 import Data.Time
 import Database.SQLite.Simple (open)
+import System.Exit
 import Text.Printf (printf)
 import Text.Read (readMaybe)
 
 version :: String
 version = "0.1"
 
+isDevelopment :: Bool
+isDevelopment = False
+
 run :: IO ()
 run = do
-  conn <- open ":memory:"
+  conn <- open (if isDevelopment then ":memory:" else "bank_buckets.db")
   bucketRepo <- newBucketRepo conn
 
   putStrLn $ "BankBuckets v" ++ version
@@ -26,21 +30,32 @@ run = do
     ( do
         buckets <- collectAllBuckets bucketRepo
         now <- getCurrentTime
-        mapM_ (putStrLn . displayBucket . resolveBucket now) buckets
+        putStr "\x1b[H\x1b[2J"
+
+        let resolvedBuckets = map (resolveBucket now) buckets
+        mapM_ (updateBucket bucketRepo) resolvedBuckets
+        mapM_ (putStrLn . displayBucket) resolvedBuckets
 
         putStrLn
-          """
+          """\n
           What would you like to do?
           1) Add new bucket
+          q) Exit
           """
         _action <- getLine
         case _action of
           "1" -> addNewBucket bucketRepo
+          "q" -> exitSuccess
           _ -> do pure ()
     )
 
 displayBucket :: Bucket -> String
-displayBucket (Bucket id' name amount portion period _) = printf "(%d) %s | %f <- %f / %s" id' name amount portion (show period)
+displayBucket (Bucket id' name amount portion period _) = printf "(%d) %s | %f <- %f / %s" id' name amount portion (displayPeriod period)
+
+displayPeriod :: NominalDiffTime -> String
+displayPeriod dt = printf "%dw %dd" (div days 7) (mod days 7)
+  where
+    days = round $ dt / nominalDay :: Int
 
 addNewBucket :: (BucketRepo r) => r -> IO ()
 addNewBucket bucketRepo = do

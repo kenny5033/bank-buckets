@@ -69,7 +69,7 @@ instance BucketRepo SQLiteRepo where
   updateBucket (SQLiteRepo conn) bucket = do
     execute
       conn
-      "UPDATE buckets SET name = ?, amount = ?, portion = ?, period = ?, last_resolved_date_time WHERE id = ?"
+      "UPDATE buckets SET name = ?, amount = ?, portion = ?, period = ?, last_resolved_date_time = ? WHERE id = ?"
       ( bucket ^. bucketName,
         bucket ^. bucketAmount,
         bucket ^. bucketId,
