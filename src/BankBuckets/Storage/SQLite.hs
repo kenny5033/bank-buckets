@@ -72,10 +72,10 @@ instance BucketRepo SQLiteRepo where
       "UPDATE buckets SET name = ?, amount = ?, portion = ?, period = ?, last_resolved_date_time = ? WHERE id = ?"
       ( bucket ^. bucketName,
         bucket ^. bucketAmount,
-        bucket ^. bucketId,
         bucket ^. bucketPortion,
         round $ bucket ^. bucketPeriod :: Int,
-        round $ utcTimeToPOSIXSeconds $ bucket ^. bucketLastResolvedDateTime :: Int
+        round $ utcTimeToPOSIXSeconds $ bucket ^. bucketLastResolvedDateTime :: Int,
+        bucket ^. bucketId
       )
 
   deleteBucket (SQLiteRepo conn) dbId = do

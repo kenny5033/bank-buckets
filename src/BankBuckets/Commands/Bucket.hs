@@ -1,6 +1,9 @@
 module BankBuckets.Commands.Bucket
   ( startBucket,
     resolveBucket,
+    depositIntoBucket,
+    withdrawFromBucket,
+    doInterBucketTransaction,
   )
 where
 
@@ -34,3 +37,12 @@ resolveBucket resolveAt b =
       bucketLastResolvedDateTime
         %~ addUTCTime
           (realToFrac numPeriodsToProcess * (b ^. bucketPeriod) :: NominalDiffTime)
+
+depositIntoBucket :: Float -> Bucket -> Bucket
+depositIntoBucket x b = b & bucketAmount %~ (+ x)
+
+withdrawFromBucket :: Float -> Bucket -> Bucket
+withdrawFromBucket x b = b & bucketAmount %~ (+ (-x))
+
+doInterBucketTransaction :: Float -> (Bucket, Bucket) -> (Bucket, Bucket)
+doInterBucketTransaction x (fromB, toB) = (withdrawFromBucket x fromB, depositIntoBucket x toB)
