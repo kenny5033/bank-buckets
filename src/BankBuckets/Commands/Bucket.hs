@@ -4,6 +4,9 @@ module BankBuckets.Commands.Bucket
     depositIntoBucket,
     withdrawFromBucket,
     doInterBucketTransaction,
+    updateBucketTracking,
+    daysUntilPayDate,
+    portionPerWeek,
   )
 where
 
@@ -45,4 +48,21 @@ withdrawFromBucket :: Float -> Bucket -> Bucket
 withdrawFromBucket x b = b & bucketAmount %~ (+ (-x))
 
 doInterBucketTransaction :: Float -> (Bucket, Bucket) -> (Bucket, Bucket)
-doInterBucketTransaction x (fromB, toB) = (withdrawFromBucket x fromB, depositIntoBucket x toB)
+doInterBucketTransaction x (fromB, toB) =
+  (withdrawFromBucket x fromB, depositIntoBucket x toB)
+
+updateBucketTracking :: Bucket -> Int -> Float -> Bucket
+updateBucketTracking b newPeriodDays newPortion =
+  b
+    & (bucketPeriod .~ fromIntegral newPeriodDays * nominalDay)
+    & (bucketPortion .~ newPortion)
+
+daysUntilPayDate :: UTCTime -> Bucket -> Int
+daysUntilPayDate fromTime b = round $ diffUTCTime nextResolutionTime fromTime / nominalDay
+  where
+    nextResolutionTime = addUTCTime (b ^. bucketPeriod) (b ^. bucketLastResolvedDateTime)
+
+portionPerWeek :: Bucket -> Float
+portionPerWeek b = (b ^. bucketPortion / daysInPeriod) * 7
+  where
+    daysInPeriod = realToFrac $ b ^. bucketPeriod / nominalDay :: Float
