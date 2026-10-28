@@ -9,7 +9,6 @@ import Control.Lens
 import Control.Monad
 import Data.Foldable
 import Data.Maybe
-import Data.Time
 import Database.SQLite.Simple (open)
 import System.Exit
 import Text.Printf (printf)
@@ -19,7 +18,7 @@ version :: String
 version = "0.1"
 
 isDevelopment :: Bool
-isDevelopment = False
+isDevelopment = True
 
 run :: IO ()
 run = do
@@ -30,17 +29,11 @@ run = do
 
   forever
     ( do
-        now <- getCurrentTime
-        _buckets <- collectAllBuckets bucketRepo
-        let buckets = map (resolveBucket now) _buckets
-        let weekAvgAllocations = foldr (\b acc -> acc + portionPerWeek b) 0 buckets
-        let sumAmount = foldr (\b acc -> acc + b ^. bucketAmount) 0 buckets
+        buckets <- collectAllBuckets bucketRepo
 
         putStr "\x1b[H\x1b[2J"
-        putStrLn $ displayTotalAllocation weekAvgAllocations
-        putStrLn $ displayTotalSaved sumAmount
-        let bucketDisplays = map displayBucket buckets
-        mapM_ (putStrLn . ($ now)) bucketDisplays
+        let bucketDisplays = map (displayBucket 0) buckets
+        mapM_ putStrLn bucketDisplays
 
         putStrLn
           """\n
@@ -60,54 +53,41 @@ run = do
           "w" -> withdrawFromBucketUI bucketRepo buckets
           "t" -> interBucketTransactionUI bucketRepo buckets
           "x" -> deleteBucketUI bucketRepo
-          "u" -> updateBucketUI bucketRepo buckets
           "q" -> exitSuccess
           _ -> do pure ()
     )
 
-displayBucket :: Bucket -> UTCTime -> String
-displayBucket b@(Bucket id' name amount portion period _) atTime =
-  printf
-    "(%d) %s | %f <- %f / %s in %dd"
-    id'
-    name
-    amount
-    portion
-    (displayPeriod period)
-    (daysUntilPayDate atTime b)
-
-displayPeriod :: NominalDiffTime -> String
-displayPeriod dt = printf "%dw %dd" (div days 7) (mod days 7)
+displayBucket :: Int -> Bucket -> String
+displayBucket level (Bucket id' name amount portion subBuckets) =
+  concat
+    ( printf
+        "%s(%d) %s | %f <- %f%%"
+        indentation
+        id'
+        name
+        amount
+        portion
+        : map (displayBucket (level + 1)) subBuckets
+    )
   where
-    days = round $ dt / nominalDay :: Int
+    indentation = (concat . replicate level) " "
 
-displayTotalAllocation :: Float -> String
-displayTotalAllocation = printf "Total Allocated: %f / week"
-
-displayTotalSaved :: Float -> String
-displayTotalSaved = printf "Total Saved: %f"
-
-updateBucketFieldsUI :: IO (Int, Float)
+updateBucketFieldsUI :: IO Float
 updateBucketFieldsUI = do
-  putStrLn "What is the period of this bucket in days?"
-  _newPeriodDays <- getLine
-  let newPeriodDays = fromMaybe 7 (readMaybe _newPeriodDays :: Maybe Int)
-
-  putStrLn "How much should go in the bucket every period?"
+  putStrLn "How much should go into this bucket from it's parent? (0%-100%) "
   _newPortion <- getLine
   let newPortion = fromMaybe 0 (readMaybe _newPortion :: Maybe Float)
 
-  pure (newPeriodDays, newPortion)
+  pure newPortion
 
 addNewBucketUI :: (BucketRepo r) => r -> IO ()
 addNewBucketUI bucketRepo = do
   putStrLn "What should the bucket be called?"
   newName <- getLine
 
-  (newPeriodDays, newPortion) <- updateBucketFieldsUI
-  now <- getCurrentTime
+  newPortion <- updateBucketFieldsUI
 
-  _ <- createBucket bucketRepo $ startBucket newName newPortion newPeriodDays now
+  _ <- createBucket bucketRepo $ startBucket newName newPortion
   pure ()
 
 selectBucketUI :: String -> String -> [Bucket] -> IO (Maybe Bucket)
@@ -164,17 +144,3 @@ deleteBucketUI r = do
   _targetBucketId <- getLine
   let targetBucketId = fromMaybe 0 (readMaybe _targetBucketId :: Maybe Int)
   deleteBucket r targetBucketId
-
-updateBucketUI :: (BucketRepo r) => r -> [Bucket] -> IO ()
-updateBucketUI r buckets = do
-  maybeTargetBucket <-
-    selectBucketUI
-      "Which bucket (ID) should be updated?"
-      "Couldn't find that bucket"
-      buckets
-
-  case maybeTargetBucket of
-    Nothing -> pure ()
-    Just targetBucket -> do
-      (newPeriodDays, newPortion) <- updateBucketFieldsUI
-      updateBucket r $ updateBucketTracking targetBucket newPeriodDays newPortion

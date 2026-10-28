@@ -5,31 +5,34 @@ module BankBuckets.Domain.Bucket
     bucketName,
     bucketAmount,
     bucketPortion,
-    bucketPeriod,
-    bucketLastResolvedDateTime,
+    bucketSubBuckets,
     BucketRepo (..),
     Bucket (..),
   )
 where
 
 import Control.Lens
-import Data.Time
+import Data.Aeson
+import GHC.Generics
 
 data Bucket = Bucket
   { _bucketId :: Int,
     _bucketName :: String,
     _bucketAmount :: Float,
     _bucketPortion :: Float,
-    _bucketPeriod :: NominalDiffTime,
-    _bucketLastResolvedDateTime :: UTCTime
+    _bucketSubBuckets :: [Bucket]
   }
-  deriving (Show)
+  deriving (Show, Generic)
 
-$(makeLenses ''Bucket)
+instance ToJSON Bucket
+
+instance FromJSON Bucket
+
+makeLenses ''Bucket
 
 class BucketRepo repo where
   createBucket :: repo -> Bucket -> IO Bucket
-  readBucket :: repo -> Int -> IO Bucket
+  readBucket :: repo -> Int -> IO (Maybe Bucket)
   updateBucket :: repo -> Bucket -> IO ()
   deleteBucket :: repo -> Int -> IO ()
 
