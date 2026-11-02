@@ -16,6 +16,7 @@ where
 
 import Control.Lens as Lens
 import Data.Aeson
+import Data.Foldable
 import GHC.Generics
 
 data Bucket = Bucket
@@ -74,12 +75,8 @@ bucketAddSubBucket root parentCondition child
         Right subs -> Right $ root & bucketSubBuckets .~ subs
 
 findBucketFromRoot :: (Bucket -> Bool) -> Bucket -> Maybe Bucket
-findBucketFromRoot condition root =
-  if condition root
-    then
-      pure root
-    else case subResults of
-      Just b : _ -> pure b
-      _ -> Nothing
+findBucketFromRoot condition root
+  | condition root = pure root
+  | otherwise = asum subResults
   where
-    subResults = map (findBucketFromRoot condition) $ root ^. bucketSubBuckets
+    subResults = findBucketFromRoot condition <$> root ^. bucketSubBuckets
