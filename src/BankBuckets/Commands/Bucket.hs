@@ -1,6 +1,5 @@
 module BankBuckets.Commands.Bucket
-  ( startBucket,
-    depositIntoBucket,
+  ( depositIntoBucket,
     withdrawFromBucket,
     doInterBucketTransaction,
   )
@@ -9,18 +8,13 @@ where
 import BankBuckets.Domain.Bucket
 import Control.Lens
 
-startBucket :: String -> Float -> Bucket
-startBucket name portion =
-  Bucket
-    { _bucketId = 0,
-      _bucketName = name,
-      _bucketAmount = 0,
-      _bucketPortion = portion,
-      _bucketSubBuckets = []
-    }
-
 depositIntoBucket :: Float -> Bucket -> Bucket
-depositIntoBucket x b = b & bucketAmount %~ (+ x)
+depositIntoBucket x b =
+  b & bucketAmount %~ (+ parentAmount) & bucketSubBuckets %~ map depositIntoSub
+  where
+    parentAmount = amountPerPortion * b ^. bucketParentalPortion
+    depositIntoSub sub = depositIntoBucket (amountPerPortion * sub ^. bucketPortion) sub
+    amountPerPortion = x / 100
 
 withdrawFromBucket :: Float -> Bucket -> Bucket
 withdrawFromBucket x b = b & bucketAmount %~ (+ (-x))

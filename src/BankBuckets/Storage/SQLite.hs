@@ -1,80 +1,76 @@
 {-# LANGUAGE MultilineStrings #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module BankBuckets.Storage.SQLite (newBucketRepo) where
+module BankBuckets.Storage.SQLite (newPortfolioSQLiteRepo) where
 
 import BankBuckets.Domain.Bucket
+import BankBuckets.Domain.Portfolio
 import Control.Lens
 import Data.Aeson
 import Data.ByteString
-import Data.Maybe
 import Data.Text
 import Data.Text.Encoding
 import Database.SQLite.Simple
 
-newtype SQLiteRepo = SQLiteRepo Connection
+newtype PortfolioSQLiteRepo = PortfolioSQLiteRepo Connection
 
 bucketToRowData :: Bucket -> Text
 bucketToRowData = decodeUtf8 . toStrict . encode
 
-rowDataToBucket :: (Int, Text) -> Maybe Bucket
-rowDataToBucket (id', blob) = (bucketId .~ id') <$> loadedBucket
-  where
-    loadedBucket = (decode . fromStrict . encodeUtf8) blob
+rowDataToBucket :: Text -> Maybe Bucket
+rowDataToBucket = decode . fromStrict . encodeUtf8
 
-newBucketRepo :: Connection -> IO SQLiteRepo
-newBucketRepo conn = do
+newPortfolioSQLiteRepo :: Connection -> IO PortfolioSQLiteRepo
+newPortfolioSQLiteRepo conn = do
   execute_
     conn
     """
-    CREATE TABLE IF NOT EXISTS buckets
+    CREATE TABLE IF NOT EXISTS portfolios
     (
       id INTEGER PRIMARY KEY,
-      data TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(data))
+      root_bucket TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(root_bucket))
     );
     """
-  pure $ SQLiteRepo conn
+  pure $ PortfolioSQLiteRepo conn
 
-instance BucketRepo SQLiteRepo where
-  createBucket (SQLiteRepo conn) bucket = do
+instance PortfolioRepo PortfolioSQLiteRepo where
+  upsertPortfolio
+    (PortfolioSQLiteRepo conn)
+    portfolio = case portfolio ^. portfolioId of
+      Nothing -> do
+        res <-
+          query
+            conn
+            "INSERT INTO portfolios (root_bucket) VALUES (?) RETURNING id"
+            (Only $ bucketToRowData $ portfolio ^. portfolioRootBucket) ::
+            IO [Only Int]
+        case res of
+          [] -> pure portfolio
+          x : _ -> pure $ portfolio & portfolioId ?~ fromOnly x
+      Just id' -> do
+        execute
+          conn
+          "UPDATE portfolios SET root_bucket = ? WHERE id = ?"
+          (bucketToRowData $ portfolio ^. portfolioRootBucket, id')
+        pure portfolio
+
+  readPortfolio (PortfolioSQLiteRepo conn) dbId = do
     res <-
       query
         conn
-        "INSERT INTO buckets (data) VALUES (?) RETURNING id"
-        (Only $ bucketToRowData bucket) ::
-        IO [Only Int]
-    case res of
-      [] -> pure bucket
-      x : _ -> pure $ bucket & bucketId .~ fromOnly x
-
-  readBucket (SQLiteRepo conn) dbId = do
-    res <-
-      query
-        conn
-        "SELECT data FROM buckets WHERE id = ?"
+        "SELECT root_bucket FROM portfolios WHERE id = ?"
         (Only dbId) ::
         IO [Only Text]
     case res of
       [] -> pure Nothing
-      x : _ -> pure $ rowDataToBucket (dbId, fromOnly x)
+      x : _ -> do
+        let loadedBucket = rowDataToBucket $ fromOnly x
+        case loadedBucket of
+          Nothing -> pure Nothing
+          Just b -> pure $ pure Portfolio {_portfolioRootBucket = b, _portfolioId = Just dbId}
 
-  updateBucket (SQLiteRepo conn) bucket = do
+  deletePortfolio (PortfolioSQLiteRepo conn) dbId = do
     execute
       conn
-      "UPDATE buckets SET data = ? WHERE id = ?"
-      (Only $ bucketToRowData bucket)
-
-  deleteBucket (SQLiteRepo conn) dbId = do
-    execute
-      conn
-      "DELETE FROM buckets WHERE id = ?"
+      "DELETE FROM portfolios WHERE id = ?"
       (Only dbId)
-
-  collectAllBuckets (SQLiteRepo conn) = do
-    res <-
-      query
-        conn
-        "SELECT id, data FROM buckets"
-        () ::
-        IO [(Int, Text)]
-    pure $ mapMaybe rowDataToBucket res
