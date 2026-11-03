@@ -47,7 +47,7 @@ mainLoop rootBucket errorMessages previousRoots = do
     "w" -> withdrawUI rootBucket >>= errorfulContinue
     "t" -> interBucketTransactionUI rootBucket >>= errorfulContinue
     "x" -> deleteUI rootBucket >>= errorfulContinue
-    -- "u" -> updateBucketUI bucketRepo
+    "u" -> updateUI rootBucket >>= errorfulContinue
     "z" -> case previousRoots of
       [] -> mainLoop rootBucket ["No previous actions"] previousRoots
       prevRoot : rest -> mainLoop prevRoot [] rest
@@ -85,7 +85,7 @@ displayBucket
     } =
     concat
       ( printf
-          "%s%-10.10s%10.2f <- %3.2f%%%s\n"
+          "%s%-15.15s %10.2f <- %3.2f%%%s\n"
           indentation
           name
           amount
@@ -179,3 +179,13 @@ deleteUI root = do
   case _target of
     Nothing -> pure $ Left "Could not find that bucket"
     Just target -> pure $ Right $ deleteBucket root (== target)
+
+updateUI :: Bucket -> IO (Either String Bucket)
+updateUI root = do
+  _target <- selectBucketUI root "Which bucket name should be updated?"
+  case _target of
+    Nothing -> pure $ Left "Could not find bucket"
+    Just target -> do
+      newName <- collectBucketNameUI
+      newPortion <- collectBucketPortionUI
+      pure $ updateSubBucket root (== target) (\b -> b & bucketName .~ newName & bucketPortion .~ newPortion)

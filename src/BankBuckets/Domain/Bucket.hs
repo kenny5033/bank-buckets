@@ -13,6 +13,7 @@ module BankBuckets.Domain.Bucket
     depositIntoBucket,
     withdrawFromBucket,
     bucketParentalAmount,
+    updateSubBucket,
   )
 where
 
@@ -89,6 +90,21 @@ withdrawFromBucket :: Bucket -> (Bucket -> Bool) -> Float -> Bucket
 withdrawFromBucket root condition amount =
   runIdentity $
     updateBucketFromRoot root condition (\b -> Identity $ b & bucketAmount %~ (+ (-amount)))
+
+updateSubBucket :: Bucket -> (Bucket -> Bool) -> (Bucket -> Bucket) -> Either String Bucket
+updateSubBucket root condition tr
+  | condition root = Right $ tr root
+  | otherwise = do
+      case traverse (\b -> updateSubBucket b condition tr) $ root ^. bucketSubBuckets of
+        Left err -> Left err
+        Right newSubs -> do
+          let newRoot = root & bucketSubBuckets .~ newSubs
+          let subPortionSum = sum $ newRoot ^.. bucketSubBuckets . each . bucketPortion
+          if subPortionSum < 0 || subPortionSum > 100
+            then
+              Left "Update would violate subs' sum percentages being in [0, 100]"
+            else
+              Right newRoot
 
 findBucket :: Bucket -> (Bucket -> Bool) -> Maybe Bucket
 findBucket root condition
