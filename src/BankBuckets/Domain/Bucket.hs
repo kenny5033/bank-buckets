@@ -7,10 +7,12 @@ module BankBuckets.Domain.Bucket
     bucketSubBuckets,
     Bucket (..),
     bucketParentalPortion,
-    bucketAddSubBucket,
+    addSubBucket,
     newBucket,
-    findBucketFromRoot,
-    updateBucketFromRoot,
+    findBucket,
+    depositIntoBucket,
+    withdrawFromBucket,
+    bucketParentalAmount,
   )
 where
 
@@ -54,29 +56,43 @@ newBucket name portion =
 bucketParentalPortion :: Getter Bucket Float
 bucketParentalPortion = Lens.to (\b -> 100 - sum (map (^. bucketPortion) $ b ^. bucketSubBuckets))
 
-updateBucketFromRoot :: Bucket -> (Bucket -> Bool) -> (Bucket -> Bucket) -> Bucket
+bucketParentalAmount :: Getter Bucket Float
+bucketParentalAmount = Lens.to (\b -> b ^. bucketAmount + sum (map (^. bucketParentalAmount) $ b ^. bucketSubBuckets))
+
+updateBucketFromRoot :: (Monad m) => Bucket -> (Bucket -> Bool) -> (Bucket -> m Bucket) -> m Bucket
 updateBucketFromRoot root targetCondition targetAction
   | targetCondition root = targetAction root
   | otherwise =
-      root
-        & bucketSubBuckets %~ map (\b -> updateBucketFromRoot b targetCondition targetAction)
+      mUpdatedChildren >>= (\subs -> pure $ root & bucketSubBuckets .~ subs)
+  where
+    mUpdatedChildren = traverse (\b -> updateBucketFromRoot b targetCondition targetAction) $ root ^. bucketSubBuckets
 
-bucketAddSubBucket :: Bucket -> (Bucket -> Bool) -> Bucket -> Either String Bucket
-bucketAddSubBucket root parentCondition child
-  | parentCondition root =
-      if child ^. bucketPortion > root ^. bucketParentalPortion
-        then
-          Left "Child portion would push total child portions over 100%"
-        else
-          Right $ root & bucketSubBuckets %~ (child :)
-  | otherwise =
-      case traverse (\b -> bucketAddSubBucket b parentCondition child) $ root ^. bucketSubBuckets of
-        Left e -> Left e
-        Right subs -> Right $ root & bucketSubBuckets .~ subs
+addSubBucket :: Bucket -> (Bucket -> Bool) -> Bucket -> Either String Bucket
+addSubBucket root parentCondition child = updateBucketFromRoot root parentCondition updateParent
+  where
+    updateParent parent =
+      if child ^. bucketPortion > parent ^. bucketParentalPortion
+        then Left "Child portion would push total child portions over 100%"
+        else Right $ parent & bucketSubBuckets %~ (child :)
 
-findBucketFromRoot :: (Bucket -> Bool) -> Bucket -> Maybe Bucket
-findBucketFromRoot condition root
+depositIntoBucket :: Bucket -> (Bucket -> Bool) -> Float -> Bucket
+depositIntoBucket root condition amount =
+  runIdentity $
+    updateBucketFromRoot root condition (Identity . deposit amount)
+  where
+    deposit x b = b & bucketAmount %~ (+ parentAmount) & bucketSubBuckets %~ map (\b' -> deposit (amountPerPortion * b' ^. bucketPortion) b')
+      where
+        amountPerPortion = x / 100
+        parentAmount = amountPerPortion * b ^. bucketParentalPortion
+
+withdrawFromBucket :: Bucket -> (Bucket -> Bool) -> Float -> Bucket
+withdrawFromBucket root condition amount =
+  runIdentity $
+    updateBucketFromRoot root condition (\b -> Identity $ b & bucketAmount %~ (+ (-amount)))
+
+findBucket :: Bucket -> (Bucket -> Bool) -> Maybe Bucket
+findBucket root condition
   | condition root = pure root
   | otherwise = asum subResults
   where
-    subResults = findBucketFromRoot condition <$> root ^. bucketSubBuckets
+    subResults = (`findBucket` condition) <$> root ^. bucketSubBuckets

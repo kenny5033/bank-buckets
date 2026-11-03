@@ -2,23 +2,28 @@ module BankBuckets.Commands.Bucket
   ( depositIntoBucket,
     withdrawFromBucket,
     doInterBucketTransaction,
+    deleteBucket,
   )
 where
 
 import BankBuckets.Domain.Bucket
 import Control.Lens
+import Data.Maybe
 
-depositIntoBucket :: Float -> Bucket -> Bucket
-depositIntoBucket x b =
-  b & bucketAmount %~ (+ parentAmount) & bucketSubBuckets %~ map depositIntoSub
+doInterBucketTransaction :: Bucket -> (Bucket, Bucket) -> Float -> Bucket
+doInterBucketTransaction root (fromB, toB) x =
+  depositIntoBucket
+    (withdrawFromBucket root (== fromB) x)
+    (== toB)
+    x
+
+deleteBucket :: Bucket -> (Bucket -> Bool) -> Bucket
+deleteBucket root condition = do
+  let collapses = map collapseBucket $ root ^. bucketSubBuckets
+  let newSubs = mapMaybe snd collapses
+  root & bucketAmount %~ (+ (sum $ map fst collapses)) & bucketSubBuckets .~ map (`deleteBucket` condition) newSubs
   where
-    parentAmount = amountPerPortion * b ^. bucketParentalPortion
-    depositIntoSub sub = depositIntoBucket (amountPerPortion * sub ^. bucketPortion) sub
-    amountPerPortion = x / 100
-
-withdrawFromBucket :: Float -> Bucket -> Bucket
-withdrawFromBucket x b = b & bucketAmount %~ (+ (-x))
-
-doInterBucketTransaction :: Float -> (Bucket, Bucket) -> (Bucket, Bucket)
-doInterBucketTransaction x (fromB, toB) =
-  (withdrawFromBucket x fromB, depositIntoBucket x toB)
+    collapseBucket :: Bucket -> (Float, Maybe Bucket)
+    collapseBucket b
+      | condition b = (b ^. bucketParentalAmount, Nothing)
+      | otherwise = (0, Just b)
