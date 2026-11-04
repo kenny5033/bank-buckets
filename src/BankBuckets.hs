@@ -14,7 +14,7 @@ import Text.Printf (printf)
 import Text.Read (readMaybe)
 
 version :: String
-version = "0.2"
+version = "1.0"
 
 isDevelopment :: Bool
 isDevelopment = True
@@ -188,4 +188,4 @@ updateUI root = do
     Just target -> do
       newName <- collectBucketNameUI
       newPortion <- collectBucketPortionUI
-      pure $ updateSubBucket root (== target) (\b -> b & bucketName .~ newName & bucketPortion .~ newPortion)
+      pure $ updateSubBucket root (== target) (newName, newPortion)

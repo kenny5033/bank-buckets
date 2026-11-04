@@ -18,7 +18,9 @@ module BankBuckets.Domain.Bucket
 where
 
 import Control.Lens as Lens
+import Control.Monad
 import Data.Aeson
+import Data.Either
 import Data.Foldable
 import GHC.Generics
 
@@ -60,16 +62,33 @@ bucketParentalPortion = Lens.to (\b -> 100 - sum (map (^. bucketPortion) $ b ^. 
 bucketParentalAmount :: Getter Bucket Float
 bucketParentalAmount = Lens.to (\b -> b ^. bucketAmount + sum (map (^. bucketParentalAmount) $ b ^. bucketSubBuckets))
 
-updateBucketFromRoot :: (Monad m) => Bucket -> (Bucket -> Bool) -> (Bucket -> m Bucket) -> m Bucket
+updateBucketFromRoot :: (Monad m) => Bucket -> (Bucket -> Bool) -> (Bucket -> m Bucket) -> m (Either String Bucket)
 updateBucketFromRoot root targetCondition targetAction
-  | targetCondition root = targetAction root
-  | otherwise =
-      mUpdatedChildren >>= (\subs -> pure $ root & bucketSubBuckets .~ subs)
-  where
-    mUpdatedChildren = traverse (\b -> updateBucketFromRoot b targetCondition targetAction) $ root ^. bucketSubBuckets
+  | targetCondition root = do
+      let mNewRoot = targetAction root
+      newRoot <- mNewRoot
+      let newPortion = newRoot ^. bucketPortion
+      if newPortion < 0 || newPortion > 100
+        then
+          pure $ Left "Update would violate the bucket's portion being in [0, 100]"
+        else
+          pure $ Right newRoot
+  | otherwise = do
+      let mNewSubs = traverse (\b -> updateBucketFromRoot b targetCondition targetAction) $ root ^. bucketSubBuckets
+      newSubs <- mNewSubs
+      case sequence newSubs of
+        Left err -> pure $ Left err
+        Right subs -> do
+          let newRoot = root & bucketSubBuckets .~ subs
+          let subPortionSum = sum $ newRoot ^.. bucketSubBuckets . each . bucketPortion
+          if subPortionSum < 0 || subPortionSum > 100
+            then
+              pure $ Left "Update would violate subs' sum percentages being in [0, 100]"
+            else
+              pure $ Right newRoot
 
 addSubBucket :: Bucket -> (Bucket -> Bool) -> Bucket -> Either String Bucket
-addSubBucket root parentCondition child = updateBucketFromRoot root parentCondition updateParent
+addSubBucket root parentCondition child = join $ updateBucketFromRoot root parentCondition updateParent
   where
     updateParent parent =
       if child ^. bucketPortion > parent ^. bucketParentalPortion
@@ -78,8 +97,7 @@ addSubBucket root parentCondition child = updateBucketFromRoot root parentCondit
 
 depositIntoBucket :: Bucket -> (Bucket -> Bool) -> Float -> Bucket
 depositIntoBucket root condition amount =
-  runIdentity $
-    updateBucketFromRoot root condition (Identity . deposit amount)
+  fromRight root $ runIdentity $ updateBucketFromRoot root condition (Identity . deposit amount)
   where
     deposit x b = b & bucketAmount %~ (+ parentAmount) & bucketSubBuckets %~ map (\b' -> deposit (amountPerPortion * b' ^. bucketPortion) b')
       where
@@ -88,23 +106,14 @@ depositIntoBucket root condition amount =
 
 withdrawFromBucket :: Bucket -> (Bucket -> Bool) -> Float -> Bucket
 withdrawFromBucket root condition amount =
-  runIdentity $
-    updateBucketFromRoot root condition (\b -> Identity $ b & bucketAmount %~ (+ (-amount)))
+  fromRight root $
+    runIdentity $
+      updateBucketFromRoot root condition (\b -> Identity $ b & bucketAmount %~ (+ (-amount)))
 
-updateSubBucket :: Bucket -> (Bucket -> Bool) -> (Bucket -> Bucket) -> Either String Bucket
-updateSubBucket root condition tr
-  | condition root = Right $ tr root
-  | otherwise = do
-      case traverse (\b -> updateSubBucket b condition tr) $ root ^. bucketSubBuckets of
-        Left err -> Left err
-        Right newSubs -> do
-          let newRoot = root & bucketSubBuckets .~ newSubs
-          let subPortionSum = sum $ newRoot ^.. bucketSubBuckets . each . bucketPortion
-          if subPortionSum < 0 || subPortionSum > 100
-            then
-              Left "Update would violate subs' sum percentages being in [0, 100]"
-            else
-              Right newRoot
+updateSubBucket :: Bucket -> (Bucket -> Bool) -> (String, Float) -> Either String Bucket
+updateSubBucket root condition (newName, newPortion) =
+  runIdentity $
+    updateBucketFromRoot root condition (\b -> Identity $ b & bucketName .~ newName & bucketPortion .~ newPortion)
 
 findBucket :: Bucket -> (Bucket -> Bool) -> Maybe Bucket
 findBucket root condition
