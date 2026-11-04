@@ -10,6 +10,8 @@ import Control.Lens
 import Control.Monad
 import Data.Maybe
 import Database.SQLite.Simple (open)
+import System.Directory
+import System.FilePath
 import Text.Printf (printf)
 import Text.Read (readMaybe)
 
@@ -60,7 +62,10 @@ mainLoop rootBucket errorMessages previousRoots = do
 
 run :: IO ()
 run = do
-  conn <- open (if isDevelopment then ":memory:" else "bank_buckets.db")
+  appDataDir <- getXdgDirectory XdgData "bankbuckets"
+  createDirectoryIfMissing True appDataDir
+
+  conn <- open (if isDevelopment then ":memory:" else appDataDir </> "bb.db")
   portfolioRepo <- newPortfolioSQLiteRepo conn
 
   _portfolio <- readPortfolio portfolioRepo 1
