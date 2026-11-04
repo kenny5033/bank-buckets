@@ -83,7 +83,7 @@ updateBucketFromRoot root targetCondition targetAction
           let subPortionSum = sum $ newRoot ^.. bucketSubBuckets . each . bucketPortion
           if subPortionSum < 0 || subPortionSum > 100
             then
-              pure $ Left "Update would violate subs' sum percentages being in [0, 100]"
+              pure $ Left "Update would violate subs' total portions being in [0, 100]"
             else
               pure $ Right newRoot
 
@@ -92,7 +92,7 @@ addSubBucket root parentCondition child = join $ updateBucketFromRoot root paren
   where
     updateParent parent =
       if child ^. bucketPortion > parent ^. bucketParentalPortion
-        then Left "Child portion would push total child portions over 100%"
+        then Left "New sub's portion would push subs' total portions over 100%"
         else Right $ parent & bucketSubBuckets %~ (child :)
 
 depositIntoBucket :: Bucket -> (Bucket -> Bool) -> Float -> Bucket
