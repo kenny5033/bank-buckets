@@ -12,7 +12,7 @@ import Data.Maybe
 
 doInterBucketTransaction :: Bucket -> (Bucket, Bucket) -> Float -> Bucket
 doInterBucketTransaction root (fromB, toB) x =
-  depositIntoBucket
+  directDepositIntoBucket
     (withdrawFromBucket root (== fromB) x)
     (== toB)
     x

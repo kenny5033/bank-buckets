@@ -14,6 +14,7 @@ module BankBuckets.Domain.Bucket
     withdrawFromBucket,
     bucketParentalAmount,
     updateSubBucket,
+    directDepositIntoBucket,
   )
 where
 
@@ -103,6 +104,10 @@ depositIntoBucket root condition amount =
       where
         amountPerPortion = x / 100
         parentAmount = amountPerPortion * b ^. bucketParentalPortion
+
+directDepositIntoBucket :: Bucket -> (Bucket -> Bool) -> Float -> Bucket
+directDepositIntoBucket root condition amount =
+  fromRight root $ runIdentity $ updateBucketFromRoot root condition (\b -> Identity $ b & bucketAmount %~ (+ amount))
 
 withdrawFromBucket :: Bucket -> (Bucket -> Bool) -> Float -> Bucket
 withdrawFromBucket root condition amount =
