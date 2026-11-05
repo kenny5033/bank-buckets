@@ -135,9 +135,7 @@ addNewBucketUI root = do
       let maybeNewBucket = newBucket name portion
       case maybeNewBucket of
         Left err -> pure $ Left err
-        Right b -> case addSubBucket root (== parent) b of
-          Left err' -> pure $ Left err'
-          Right b' -> pure $ Right b'
+        Right b -> pure $ addSubBucket root (== parent) b
 
 depositUI :: Bucket -> IO (Either String Bucket)
 depositUI root = do
