@@ -22,12 +22,13 @@ import Control.Lens as Lens
 import Control.Monad
 import Data.Aeson
 import Data.Either
+import Data.Fixed
 import Data.Foldable
 import GHC.Generics
 
 data Bucket = Bucket
   { _bucketName :: String,
-    _bucketAmount :: Float,
+    _bucketAmount :: Centi,
     _bucketPortion :: Float,
     _bucketSubBuckets :: [Bucket]
   }
@@ -60,7 +61,7 @@ newBucket name portion =
 bucketParentalPortion :: Getter Bucket Float
 bucketParentalPortion = Lens.to (\b -> 100 - sum (map (^. bucketPortion) $ b ^. bucketSubBuckets))
 
-bucketParentalAmount :: Getter Bucket Float
+bucketParentalAmount :: Getter Bucket Centi
 bucketParentalAmount = Lens.to (\b -> b ^. bucketAmount + sum (map (^. bucketParentalAmount) $ b ^. bucketSubBuckets))
 
 updateBucketFromRoot :: (Monad m) => Bucket -> (Bucket -> Bool) -> (Bucket -> m Bucket) -> m (Either String Bucket)
@@ -96,20 +97,20 @@ addSubBucket root parentCondition child = join $ updateBucketFromRoot root paren
         then Left "New sub's portion would push subs' total portions over 100%"
         else Right $ parent & bucketSubBuckets %~ (child :)
 
-depositIntoBucket :: Bucket -> (Bucket -> Bool) -> Float -> Bucket
+depositIntoBucket :: Bucket -> (Bucket -> Bool) -> Centi -> Bucket
 depositIntoBucket root condition amount =
   fromRight root $ runIdentity $ updateBucketFromRoot root condition (Identity . deposit amount)
   where
-    deposit x b = b & bucketAmount %~ (+ parentAmount) & bucketSubBuckets %~ map (\b' -> deposit (amountPerPortion * b' ^. bucketPortion) b')
+    deposit x b = b & bucketAmount %~ (+ parentAmount) & bucketSubBuckets %~ map (\b' -> deposit (x * realToFrac (b' ^. bucketPortion / 100)) b')
       where
-        amountPerPortion = x / 100
-        parentAmount = amountPerPortion * b ^. bucketParentalPortion
+        adjustedPortion = b ^. bucketParentalPortion / 100
+        parentAmount = x * realToFrac adjustedPortion
 
-directDepositIntoBucket :: Bucket -> (Bucket -> Bool) -> Float -> Bucket
+directDepositIntoBucket :: Bucket -> (Bucket -> Bool) -> Centi -> Bucket
 directDepositIntoBucket root condition amount =
   fromRight root $ runIdentity $ updateBucketFromRoot root condition (\b -> Identity $ b & bucketAmount %~ (+ amount))
 
-withdrawFromBucket :: Bucket -> (Bucket -> Bool) -> Float -> Bucket
+withdrawFromBucket :: Bucket -> (Bucket -> Bool) -> Centi -> Bucket
 withdrawFromBucket root condition amount =
   fromRight root $
     runIdentity $

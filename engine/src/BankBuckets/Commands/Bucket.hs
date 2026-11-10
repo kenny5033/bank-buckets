@@ -8,9 +8,10 @@ where
 
 import BankBuckets.Domain.Bucket
 import Control.Lens
+import Data.Fixed
 import Data.Maybe
 
-doInterBucketTransaction :: Bucket -> (Bucket, Bucket) -> Float -> Bucket
+doInterBucketTransaction :: Bucket -> (Bucket, Bucket) -> Centi -> Bucket
 doInterBucketTransaction root (fromB, toB) x =
   directDepositIntoBucket
     (withdrawFromBucket root (== fromB) x)
@@ -23,7 +24,7 @@ deleteBucket root condition = do
   let newSubs = mapMaybe snd collapses
   root & bucketAmount %~ (+ (sum $ map fst collapses)) & bucketSubBuckets .~ map (`deleteBucket` condition) newSubs
   where
-    collapseBucket :: Bucket -> (Float, Maybe Bucket)
+    collapseBucket :: Bucket -> (Centi, Maybe Bucket)
     collapseBucket b
       | condition b = (b ^. bucketParentalAmount, Nothing)
       | otherwise = (0, Just b)

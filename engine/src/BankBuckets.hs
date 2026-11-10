@@ -8,6 +8,7 @@ import BankBuckets.Domain.Portfolio
 import BankBuckets.Storage.SQLite
 import Control.Lens
 import Control.Monad
+import Data.Fixed
 import Data.Maybe
 import Database.SQLite.Simple (open)
 import System.Directory
@@ -90,10 +91,10 @@ displayBucket
     } =
     concat
       ( printf
-          "%s%-15.15s %10.2f <- %3.2f%%%s\n"
+          "%s%-15.15s %10.10s <- %3f%%%s\n"
           indentation
           name
-          amount
+          (show amount)
           portion
           ( case b ^. bucketParentalPortion of
               100 -> ""
@@ -141,7 +142,7 @@ depositUI :: Bucket -> IO (Either String Bucket)
 depositUI root = do
   putStrLn "How much?"
   _amount <- getLine
-  let amount = readMaybe _amount :: Maybe Float
+  let amount = readMaybe _amount :: Maybe Centi
   case amount of
     Nothing -> pure $ Left "Could not parse that as a number"
     Just a -> pure $ Right $ depositIntoBucket root (== root) a
@@ -154,7 +155,7 @@ withdrawUI root = do
     Just target -> do
       putStrLn "How much?"
       _amount <- getLine
-      let amount = readMaybe _amount :: Maybe Float
+      let amount = readMaybe _amount :: Maybe Centi
       case amount of
         Nothing -> pure $ Left "Could not parse that as a number"
         Just a -> pure $ Right $ withdrawFromBucket root (== target) a
@@ -171,7 +172,7 @@ interBucketTransactionUI root = do
         Just toTarget -> do
           putStrLn "How much?"
           _amount <- getLine
-          let amount = readMaybe _amount :: Maybe Float
+          let amount = readMaybe _amount :: Maybe Centi
           case amount of
             Nothing -> pure $ Left "Could not parse that as a number"
             Just a -> pure $ Right $ doInterBucketTransaction root (fromTarget, toTarget) a
