@@ -6,6 +6,7 @@ module BankBuckets.Storage.SQLite (newPortfolioSQLiteRepo) where
 import BankBuckets.Domain.Bucket
 import BankBuckets.Domain.Portfolio
 import Control.Lens
+import Control.Monad
 import Data.Aeson
 import Data.ByteString
 import Data.Text
@@ -22,15 +23,24 @@ rowDataToBucket = decode . fromStrict . encodeUtf8
 
 newPortfolioSQLiteRepo :: Connection -> IO PortfolioSQLiteRepo
 newPortfolioSQLiteRepo conn = do
-  execute_
-    conn
-    """
-    CREATE TABLE IF NOT EXISTS portfolios
-    (
-      id INTEGER PRIMARY KEY,
-      root_bucket TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(root_bucket))
-    );
-    """
+  _userVersion <- query conn "PRAGMA user_version;" () :: IO [Only Int]
+  let userVersion = (case _userVersion of [] -> 0; x : _ -> fromOnly x)
+
+  when
+    (userVersion < 1)
+    ( withTransaction conn $ do
+        execute_
+          conn
+          """
+          CREATE TABLE IF NOT EXISTS portfolios
+          (
+            id INTEGER PRIMARY KEY,
+            root_bucket TEXT NOT NULL DEFAULT '{}' CHECK (json_valid(root_bucket))
+          );
+          """
+        execute_ conn "PRAGMA user_version = 1;"
+    )
+
   pure $ PortfolioSQLiteRepo conn
 
 instance PortfolioRepo PortfolioSQLiteRepo where
