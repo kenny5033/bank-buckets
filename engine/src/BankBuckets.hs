@@ -5,17 +5,15 @@ import BankBuckets.Interface.CLI
 import BankBuckets.Interface.JSONRPC
 import BankBuckets.Storage.SQLite
 import Database.SQLite.Simple (open)
-import System.Directory
 import System.FilePath
 
 data RunMode = CLI | JSONRPC
 
 run :: RunMode -> IO ()
 run mode = do
-  appDataDir <- getXdgDirectory XdgData "bankbuckets"
-  createDirectoryIfMissing True appDataDir
+  dataDir <- appDataDir
 
-  conn <- open (if isDevelopment then ":memory:" else appDataDir </> "bb.db")
+  conn <- open (if isDevelopment then ":memory:" else dataDir </> "bb.db")
   portfolioRepo <- newPortfolioSQLiteRepo conn
 
   case mode of
