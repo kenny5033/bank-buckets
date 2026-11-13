@@ -1,4 +1,4 @@
-module BankBuckets.Interface.Common (openDomainSocket, closeDomainSocket) where
+module BankBuckets.Interface.Common (openDomainSocket, closeSocket) where
 
 import BankBuckets.Common
 import Network.Socket
@@ -15,8 +15,8 @@ openDomainSocket socketName = do
   listen sock maxListenQueue
   pure sock
 
-closeDomainSocket :: Socket -> IO ()
-closeDomainSocket sock = do
+closeSocket :: Socket -> IO ()
+closeSocket sock = do
   path <- getSocketName sock
   close sock
   case path of
