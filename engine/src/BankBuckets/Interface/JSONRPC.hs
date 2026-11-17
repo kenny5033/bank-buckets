@@ -17,16 +17,16 @@ import Network.Wai qualified as Wai
 import Network.Wai.Handler.Warp
 
 runJSONRPC :: (PortfolioRepo r) => r -> IO ()
-runJSONRPC _portfolioRepo =
+runJSONRPC portfolioRepo =
   bracket
     (openDomainSocket "jsonrpc.sock")
     closeSocket
     ( \sock -> do
-        runSettingsSocket defaultSettings sock jsonRPCApp
+        runSettingsSocket defaultSettings sock $ jsonRPCApp portfolioRepo
     )
 
-jsonRPCApp :: Application
-jsonRPCApp req respond
+jsonRPCApp :: (PortfolioRepo r) => r -> Application
+jsonRPCApp repo req respond
   | Wai.requestMethod req /= methodPost = respond $ responseLBS status405 [] "POST only"
   | otherwise = do
       body <- strictRequestBody req
@@ -41,7 +41,7 @@ jsonRPCApp req respond
           "addBucket" -> do
             let maybeReq = fromJSON params :: Result AddBucketRequest
             case maybeReq of
-              Success r -> jsonRPCSuccess rid r
+              Success r -> rpcAddBucket repo r >>= jsonRPCSuccess rid
               _ -> jsonRPCFailure (-32700, "Parse error when parsing params")
           _ -> jsonRPCFailure (-32600, "Invalid method")
   where
