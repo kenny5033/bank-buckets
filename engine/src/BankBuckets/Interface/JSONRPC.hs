@@ -31,42 +31,25 @@ jsonRPCApp repo req respond
   | otherwise = do
       body <- strictRequestBody req
       case eitherDecode body :: Either String (JSONRPCRequest Value) of
-        Left _ -> jsonRPCFailure (-32700, "Parse error when parsing request")
+        Left err -> jsonRPCFailure (-32700, "Parse error when parsing request", Just err)
         Right JSONRPCRequest {method, id = rid, params} -> case method of
           "ping" -> do
-            let maybeReq = fromJSON params :: Result PingRequest
-            case maybeReq of
-              Success r -> jsonRPCSuccess rid $ object ["pong" .= r]
-              _ -> jsonRPCFailure (-32700, "Parse error when parsing params")
+            let maybeResp = (\r -> object ["pong" .= r]) <$> (fromJSON params :: Result PingRequest)
+            case maybeResp of
+              Success r -> jsonRPCSuccess rid r
+              _ -> jsonRPCFailure (-32700, "Parse error when parsing params", Just params)
           "addBucket" -> do
-            let maybeReq = fromJSON params :: Result AddBucketRequest
+            let maybeReq = rpcAddBucket repo <$> (fromJSON params :: Result AddBucketRequest)
             case maybeReq of
-              Success r -> rpcAddBucket repo r >>= jsonRPCSuccess rid
-              _ -> jsonRPCFailure (-32700, "Parse error when parsing params")
-          _ -> jsonRPCFailure (-32600, "Invalid method")
+              Success r -> r >>= jsonRPCSuccess rid
+              _ -> jsonRPCFailure (-32700, "Parse error when parsing params", Just params)
+          _ -> jsonRPCFailure (-32600, "Invalid method", Nothing :: Maybe String)
   where
     jsonRPCSuccess :: (ToJSON r) => JSONRPCID -> r -> IO ResponseReceived
-    jsonRPCSuccess id' r =
-      respond . jsonResp . toJSON $
-        JSONRPCResponse
-          { jsonrpc = "2.0",
-            result = Just r,
-            error = Nothing,
-            id = id'
-          }
+    jsonRPCSuccess id' = respond . jsonResp . toJSON . newJSONRPCSuccessResponse id'
 
-    jsonRPCFailure :: (Int, String) -> IO ResponseReceived
-    jsonRPCFailure (code, msg) =
-      respond . jsonResp . toJSON $
-        ( JSONRPCResponse
-            { jsonrpc = "2.0",
-              result =
-                Nothing,
-              error = Just JSONRPCErrorResponse {code = code, message = msg, data' = Nothing},
-              id = Nothing
-            } ::
-            JSONRPCResponse ()
-        )
+    jsonRPCFailure :: (ToJSON r) => (Int, String, Maybe r) -> IO ResponseReceived
+    jsonRPCFailure = respond . jsonResp . toJSON . newJSONRPCFailureResponse
 
 type JSONRPCID = Maybe Integer
 
@@ -100,6 +83,25 @@ data JSONRPCResponse r = JSONRPCResponse
     id :: JSONRPCID
   }
   deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+newJSONRPCSuccessResponse :: (ToJSON r) => JSONRPCID -> r -> JSONRPCResponse r
+newJSONRPCSuccessResponse rid r =
+  JSONRPCResponse
+    { jsonrpc = "2.0",
+      result = Just r,
+      error = Nothing,
+      id = rid
+    }
+
+newJSONRPCFailureResponse :: (ToJSON r) => (Int, String, Maybe r) -> JSONRPCResponse r
+newJSONRPCFailureResponse (code, msg, r) =
+  JSONRPCResponse
+    { jsonrpc = "2.0",
+      result =
+        Nothing,
+      error = Just JSONRPCErrorResponse {code = code, message = msg, data' = r},
+      id = Nothing
+    }
 
 jsonResp :: Value -> Response
 jsonResp v = responseLBS status200 [(hContentType, "application/json")] $ encode v
