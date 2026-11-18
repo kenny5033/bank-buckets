@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+
+cleanup() {
+    local pids=$(jobs -pr)
+    [ -n "$pids" ] && kill $pids 2>/dev/null
+}
+
+trap cleanup EXIT INT TERM
+
+if [[ "$1" == "cli" ]]; then
+  echo "Starting CLI..."
+  cabal run bank-buckets cli
+elif [[ "$1" == "jsonrpc" ]]; then
+  echo "Starting JSON-RPC server..."
+  (cabal run --ghc-options="-threaded" bank-buckets jsonrpc \
+     2>&1 | sed 's/^/[BANKBUCKETS] /') &
+  if [[ -n $2 ]]; then
+    echo "Forwarding to localhost:8888..."
+    (socat TCP-LISTEN:"$2",fork UNIX-CONNECT:$HOME/.cache/bankbuckets/jsonrpc.sock \
+       2>&1 | sed 's/^/[SOCAT] /') &
+  fi
+else
+  echo "Please tell me to run as 'cli' or 'jsonrpc [forward port]'"
+fi
+
+wait $(jobs -pr)
