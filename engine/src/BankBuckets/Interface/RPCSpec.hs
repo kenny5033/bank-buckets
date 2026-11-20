@@ -1,6 +1,16 @@
 {-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 
-module BankBuckets.Interface.RPCSpec (PingRequest (..), AddBucketRequest (..), rpcAddBucket) where
+module BankBuckets.Interface.RPCSpec
+  ( PingRequest (..),
+    AddBucketRequest (..),
+    rpcAddBucket,
+    GetPortfolioRequest (..),
+    rpcGetPortfolio,
+    OpenPortfolioRequest (..),
+    rpcOpenPortfolio,
+  )
+where
 
 import BankBuckets.Domain.Bucket
 import BankBuckets.Domain.Portfolio
@@ -54,3 +64,54 @@ rpcAddBucket repo AddBucketRequest {pId, parentName, name, portion} = do
 
     addToParent :: Bucket -> Bucket -> Either String Bucket
     addToParent root parent = newBucket name portion >>= addSubBucket root (== parent)
+
+newtype GetPortfolioRequest = GetPortfolioRequest Int
+  deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+data GetPortfolioResponse
+  = GetPortfolioSuccess
+      { rootBucket :: Bucket,
+        id :: Int
+      }
+  | GetPortfolioFailure
+      { message :: String
+      }
+  deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+rpcGetPortfolio :: (PortfolioRepo r) => r -> GetPortfolioRequest -> IO GetPortfolioResponse
+rpcGetPortfolio repo (GetPortfolioRequest id') = do
+  maybePortfolio <- readPortfolio repo id'
+  pure $ case maybePortfolio of
+    Nothing -> GetPortfolioFailure (printf "Couldn't find portfolio id = %d" id')
+    Just portfolio -> case portfolio ^. portfolioId of
+      Nothing -> GetPortfolioFailure "Couldn't match requested portfolio to found portfolio"
+      Just pId ->
+        if pId == id'
+          then
+            GetPortfolioSuccess (portfolio ^. portfolioRootBucket) pId
+          else
+            GetPortfolioFailure "Couldn't match requested portfolio to found portfolio"
+
+newtype OpenPortfolioRequest = OpenPortfolioRequest ()
+  deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+data OpenPortfolioResponse
+  = OpenPortfolioSuccess
+      { rootBucket :: Bucket,
+        id :: Int
+      }
+  | OpenPortfolioFailure
+      { message :: String
+      }
+  deriving (Show, Eq, Generic, ToJSON, FromJSON)
+
+rpcOpenPortfolio :: (PortfolioRepo r) => r -> OpenPortfolioRequest -> IO OpenPortfolioResponse
+rpcOpenPortfolio repo _ = do
+  portfolio <- upsertPortfolio repo $ newPortfolio "main"
+  pure $ case portfolio ^. portfolioId of
+    Nothing -> OpenPortfolioFailure "Could not associate id with new portfolio"
+    Just pId ->
+      OpenPortfolioSuccess
+        { rootBucket = portfolio ^. portfolioRootBucket,
+          id = pId
+        }

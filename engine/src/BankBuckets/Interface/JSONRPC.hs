@@ -33,16 +33,14 @@ jsonRPCApp repo req respond
       case eitherDecode body :: Either String (JSONRPCRequest Value) of
         Left err -> jsonRPCFailure (-32700, "Parse error when parsing request", Just err)
         Right JSONRPCRequest {method, id = rid, params} -> case method of
-          "ping" -> do
-            let maybeResp = (\r -> object ["pong" .= r]) <$> (fromJSON params :: Result PingRequest)
-            case maybeResp of
-              Success r -> jsonRPCSuccess rid r
-              _ -> jsonRPCFailure (-32700, "Parse error when parsing params", Just params)
-          "addBucket" -> do
-            let maybeReq = rpcAddBucket repo <$> (fromJSON params :: Result AddBucketRequest)
-            case maybeReq of
-              Success r -> r >>= jsonRPCSuccess rid
-              _ -> jsonRPCFailure (-32700, "Parse error when parsing params", Just params)
+          "ping" ->
+            mapM (\r -> pure $ object ["pong" .= r]) (fromJSON params :: Result PingRequest) >>= jsonRPCRespond rid
+          "addBucket" ->
+            mapM (rpcAddBucket repo) (fromJSON params :: Result AddBucketRequest) >>= jsonRPCRespond rid
+          "getPortfolio" ->
+            mapM (rpcGetPortfolio repo) (fromJSON params :: Result GetPortfolioRequest) >>= jsonRPCRespond rid
+          "openPortfolio" ->
+            mapM (rpcOpenPortfolio repo) (fromJSON params :: Result OpenPortfolioRequest) >>= jsonRPCRespond rid
           _ -> jsonRPCFailure (-32600, "Invalid method", Nothing :: Maybe String)
   where
     jsonRPCSuccess :: (ToJSON r) => JSONRPCID -> r -> IO ResponseReceived
@@ -50,6 +48,11 @@ jsonRPCApp repo req respond
 
     jsonRPCFailure :: (ToJSON r) => (Int, String, Maybe r) -> IO ResponseReceived
     jsonRPCFailure = respond . jsonResp . toJSON . newJSONRPCFailureResponse
+
+    jsonRPCRespond :: (ToJSON r) => JSONRPCID -> Result r -> IO ResponseReceived
+    jsonRPCRespond id' parse = case parse of
+      Success r -> jsonRPCSuccess id' r
+      Error msg -> jsonRPCFailure (-32700, msg, Nothing :: Maybe String)
 
 type JSONRPCID = Maybe Integer
 
